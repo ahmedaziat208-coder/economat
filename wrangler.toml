@@ -1,0 +1,13 @@
+name = "obayoli-erp"
+
+compatibility_date = "2026-10-16"
+
+# React + Vite build output
+[assets]
+directory = "./dist"
+not_found_handling = "single-page-application"
+# Optional Cloudflare D1 Database binding for Cloud Database Synchronization
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "obayoli_prod"
+# database_id = "your-cloudflare-d1-database-uuid"

@@ -1,0 +1,6 @@
+{
+  "name": "OBAYOLI - نظام إدارة المطاعم والمخزون",
+  "description": "نظام ويب احترافي وشامل لتسيير المطاعم والمخازن، يشمل إدارة المواد، المخزون، الهدر، الاستهلاك، البطاقات التقنية للأطباق، فواتير التوريد، ودليل الموردين.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

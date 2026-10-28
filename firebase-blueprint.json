@@ -1,0 +1,157 @@
+{
+  "entities": {
+    "Material": {
+      "title": "Material",
+      "description": "Raw material or food item in the inventory",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "sku": { "type": "string" },
+        "barcode": { "type": "string" },
+        "name": { "type": "string" },
+        "nameFr": { "type": "string" },
+        "nameEn": { "type": "string" },
+        "category": { "type": "string" },
+        "unit": { "type": "string" },
+        "fexPrice": { "type": "number" },
+        "purchasePrice": { "type": "number" },
+        "unitCost": { "type": "number" },
+        "currentStock": { "type": "number" },
+        "minStock": { "type": "number" },
+        "maxStock": { "type": "number" },
+        "supplierId": { "type": "string" },
+        "notes": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "name", "category", "unit", "currentStock"]
+    },
+    "StockMovement": {
+      "title": "StockMovement",
+      "description": "Stock entry, exit, or adjustment movement",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string" },
+        "materialId": { "type": "string" },
+        "type": { "type": "string" },
+        "quantity": { "type": "number" },
+        "unitPrice": { "type": "number" },
+        "totalValue": { "type": "number" },
+        "referenceId": { "type": "string" },
+        "reason": { "type": "string" },
+        "operatorName": { "type": "string" }
+      },
+      "required": ["id", "date", "materialId", "type", "quantity"]
+    },
+    "Recipe": {
+      "title": "Recipe",
+      "description": "Technical recipe sheet (Fiche Technique)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "code": { "type": "string" },
+        "name": { "type": "string" },
+        "nameFr": { "type": "string" },
+        "category": { "type": "string" },
+        "department": { "type": "string" },
+        "portions": { "type": "number" },
+        "prepTimeMin": { "type": "number" },
+        "cookTimeMin": { "type": "number" },
+        "sellingPrice": { "type": "number" },
+        "tvaRate": { "type": "number" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "name", "category", "sellingPrice"]
+    },
+    "Supplier": {
+      "title": "Supplier",
+      "description": "Supplier contact and details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "companyName": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "address": { "type": "string" },
+        "active": { "type": "boolean" }
+      },
+      "required": ["id", "name", "phone"]
+    },
+    "Invoice": {
+      "title": "Invoice",
+      "description": "Supplier purchase invoice",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "invoiceNumber": { "type": "string" },
+        "date": { "type": "string" },
+        "supplierId": { "type": "string" },
+        "subtotalHT": { "type": "number" },
+        "tvaAmount": { "type": "number" },
+        "totalTTC": { "type": "number" },
+        "status": { "type": "string" },
+        "paymentMethod": { "type": "string" }
+      },
+      "required": ["id", "invoiceNumber", "date", "supplierId", "totalTTC"]
+    },
+    "PurchaseOrder": {
+      "title": "PurchaseOrder",
+      "description": "Order placed to a supplier",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "orderNumber": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "supplierId": { "type": "string" },
+        "totalEstimatedAmount": { "type": "number" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "orderNumber", "supplierId", "status"]
+    },
+    "SystemSnapshot": {
+      "title": "SystemSnapshot",
+      "description": "Full serialized cloud backup snapshot",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "dataJson": { "type": "string" },
+        "deviceInfo": { "type": "string" },
+        "materialsCount": { "type": "number" },
+        "version": { "type": "string" }
+      },
+      "required": ["id", "timestamp", "dataJson"]
+    }
+  },
+  "firestore": {
+    "/materials/{materialId}": {
+      "schema": { "$ref": "#/entities/Material" },
+      "description": "Collection of raw ingredients and stock items"
+    },
+    "/stock_movements/{movementId}": {
+      "schema": { "$ref": "#/entities/StockMovement" },
+      "description": "Collection of all inventory movements"
+    },
+    "/recipes/{recipeId}": {
+      "schema": { "$ref": "#/entities/Recipe" },
+      "description": "Collection of technical recipe sheets"
+    },
+    "/suppliers/{supplierId}": {
+      "schema": { "$ref": "#/entities/Supplier" },
+      "description": "Collection of suppliers"
+    },
+    "/invoices/{invoiceId}": {
+      "schema": { "$ref": "#/entities/Invoice" },
+      "description": "Collection of purchase invoices"
+    },
+    "/purchase_orders/{orderId}": {
+      "schema": { "$ref": "#/entities/PurchaseOrder" },
+      "description": "Collection of supplier purchase orders"
+    },
+    "/system_snapshots/{snapshotId}": {
+      "schema": { "$ref": "#/entities/SystemSnapshot" },
+      "description": "Full cloud backup snapshots synchronized across devices"
+    }
+  }
+}
