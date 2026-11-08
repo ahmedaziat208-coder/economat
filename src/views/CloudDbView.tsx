@@ -26,6 +26,8 @@ import {
   KeyRound,
   Lock,
   LogOut,
+  CalendarCheck,
+  ClipboardCheck,
 } from 'lucide-react';
 import { authService } from '../services/auth';
 
@@ -138,6 +140,35 @@ export const CloudDbView: React.FC<CloudDbViewProps> = ({ lang }) => {
       setNewMasterPass('');
       setIsChangingPass(false);
     }
+  };
+
+  const handleRunDailyBackup = async () => {
+    const result = await dbService.runDailyBackup();
+    forceUpdate((count) => count + 1);
+    showToast(result.success ? `✅ ${result.message}` : `⚠️ ${result.message}`);
+  };
+
+  const handleTestBackup = (backupId: string) => {
+    const result = dbService.testAutomaticBackup(backupId);
+    showToast(result.success ? `✅ ${result.message}` : `⚠️ ${result.message}`);
+  };
+
+  const handleRestoreBackup = (backupId: string) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'استرجاع نسخة احتياطية كاملة',
+      description: 'سيتم استبدال البيانات الحالية بالنسخة المختارة. يجب التأكد من اختبار النسخة أولاً.',
+      onConfirm: () => {
+        if (dbService.restoreAutomaticBackup(backupId)) {
+          setConfirmDialog(null);
+          showToast('تم استرجاع النسخة الاحتياطية كاملة بنجاح.');
+          setTimeout(() => window.location.reload(), 700);
+        } else {
+          setConfirmDialog(null);
+          showToast('تعذر استرجاع النسخة: الملف تالف أو غير مكتمل.');
+        }
+      },
+    });
   };
 
   return (
@@ -349,6 +380,60 @@ export const CloudDbView: React.FC<CloudDbViewProps> = ({ lang }) => {
       {/* Local DB Actions: Export, Restore, Reset */}
       <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5 space-y-4">
         <h3 className="font-bold text-xs text-white">إدارة النسخ الاحتياطي والبدء من الصفر</h3>
+
+        <div className="rounded-xl border border-emerald-500/20 bg-emerald-950/20 p-4 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2 text-sm font-bold text-white">
+                <CalendarCheck className="w-4 h-4 text-emerald-400" />
+                النسخ الاحتياطي التلقائي اليومي
+              </div>
+              <p className="text-[11px] text-neutral-400 mt-1">
+                نسخة كاملة من الفواتير والمخزون والحركات تُحفظ يومياً محلياً وفي Firestore عند توفر الاتصال.
+              </p>
+            </div>
+            <button
+              onClick={handleRunDailyBackup}
+              className="px-3 py-2 text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-lg hover:bg-emerald-500/30"
+            >
+              إنشاء نسخة الآن واختبارها
+            </button>
+          </div>
+
+          <div className="grid gap-2">
+            {dbService.getAutomaticBackups().slice(0, 7).map((backup) => (
+              <div key={backup.id} className="flex flex-wrap items-center justify-between gap-2 bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2">
+                <div>
+                  <div className="text-xs text-neutral-200 font-mono">
+                    {new Date(backup.createdAt).toLocaleString(lang === 'ar' ? 'ar-MA' : 'en-US')}
+                  </div>
+                  <div className="text-[10px] text-neutral-500 mt-0.5">
+                    {backup.counts.invoices} فاتورة · {backup.counts.movements} حركة · {backup.counts.materials} مادة
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleTestBackup(backup.id)}
+                    className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] rounded-lg bg-neutral-800 text-neutral-200 border border-neutral-700 hover:text-emerald-300"
+                  >
+                    <ClipboardCheck className="w-3.5 h-3.5" />
+                    اختبار الاسترجاع
+                  </button>
+                  <button
+                    onClick={() => handleRestoreBackup(backup.id)}
+                    className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] rounded-lg bg-amber-500/10 text-amber-300 border border-amber-500/30 hover:bg-amber-500/20"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    استرجاع
+                  </button>
+                </div>
+              </div>
+            ))}
+            {dbService.getAutomaticBackups().length === 0 && (
+              <div className="text-[11px] text-neutral-500 py-2">لم يتم إنشاء نسخة يومية بعد.</div>
+            )}
+          </div>
+        </div>
 
         <div className="flex flex-wrap items-center gap-3">
           <button

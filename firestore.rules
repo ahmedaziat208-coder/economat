@@ -43,5 +43,9 @@ service cloud.firestore {
     match /system_snapshots/{snapshotId} {
       allow read, write: if isValidId(snapshotId);
     }
+
+    match /system_backups/{backupId} {
+      allow read, write: if isValidId(backupId);
+    }
   }
 }

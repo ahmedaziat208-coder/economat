@@ -19,6 +19,20 @@ import { firestore, handleFirestoreError, OperationType, testConnection } from '
 import { doc, setDoc, getDoc, onSnapshot } from 'firebase/firestore';
 
 const STORAGE_KEY = 'OBAYOLI_RESTAURANT_DB_V3_MAD';
+const BACKUPS_KEY = 'OBAYOLI_AUTOMATIC_BACKUPS_V1';
+
+export interface AutomaticBackup {
+  id: string;
+  createdAt: string;
+  dataJson: string;
+  checksum: string;
+  source: 'local';
+  counts: {
+    invoices: number;
+    movements: number;
+    materials: number;
+  };
+}
 
 export const INITIAL_SUPPLIERS: Supplier[] = [
   {
@@ -747,6 +761,8 @@ class DBService {
   constructor() {
     this.db = this.loadDatabase();
     this.initFirestoreSync();
+    this.runDailyBackup();
+    window.setInterval(() => this.runDailyBackup(), 60 * 60 * 1000);
   }
 
   private initFirestoreSync() {
@@ -1178,6 +1194,14 @@ class DBService {
 
   public saveInvoice(invoiceData: Omit<SupplierInvoice, 'id'> & { id?: string }): SupplierInvoice {
     const isNew = !invoiceData.id;
+    const normalizedNumber = invoiceData.invoiceNumber.trim().toLowerCase();
+    const duplicate = this.db.invoices.find((invoice) =>
+      invoice.invoiceNumber.trim().toLowerCase() === normalizedNumber &&
+      invoice.id !== invoiceData.id
+    );
+    if (duplicate) {
+      throw new Error(`رقم الفاتورة ${invoiceData.invoiceNumber} مسجل مسبقاً ولا يمكن تكراره.`);
+    }
     const invoiceId = invoiceData.id || 'inv_' + Date.now();
     const invoice: SupplierInvoice = {
       ...invoiceData,
@@ -1234,11 +1258,20 @@ class DBService {
       const mat = this.db.materials.find((m) => m.id === item.materialId);
       if (mat) {
         mat.currentStock = Math.max(0, Number((mat.currentStock - item.quantity).toFixed(3)));
+        this.db.movements.unshift({
+          id: 'mov_reversal_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+          date: new Date().toISOString(),
+          materialId: mat.id,
+          type: 'adjustment_negative',
+          quantity: item.quantity,
+          unitPrice: item.unitPriceHT,
+          totalValue: item.totalHT,
+          referenceId: invoiceId,
+          reason: `حركة عكسية لفاتورة رقم ${existing.invoiceNumber} - الحفاظ على سجل التدقيق`,
+          operatorName: 'نظام الحماية',
+        });
       }
     });
-
-    // Remove movements related to this invoice
-    this.db.movements = this.db.movements.filter((m) => m.referenceId !== invoiceId);
   }
 
   public deleteInvoice(id: string) {
@@ -1750,6 +1783,102 @@ class DBService {
   }
 
   // --- Backup & Restore ---
+  private checksum(value: string): string {
+    let hash = 0;
+    for (let index = 0; index < value.length; index++) {
+      hash = ((hash << 5) - hash + value.charCodeAt(index)) | 0;
+    }
+    return (hash >>> 0).toString(16).padStart(8, '0');
+  }
+
+  private validateDatabaseSnapshot(parsed: unknown): parsed is RestaurantDatabase {
+    if (!parsed || typeof parsed !== 'object') return false;
+    const candidate = parsed as Partial<RestaurantDatabase>;
+    return Array.isArray(candidate.materials) &&
+      Array.isArray(candidate.movements) &&
+      Array.isArray(candidate.invoices) &&
+      Array.isArray(candidate.suppliers);
+  }
+
+  public getAutomaticBackups(): AutomaticBackup[] {
+    try {
+      const stored = localStorage.getItem(BACKUPS_KEY);
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  public async runDailyBackup(): Promise<{ success: boolean; message: string }> {
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const backups = this.getAutomaticBackups();
+      if (backups.some((backup) => backup.createdAt.slice(0, 10) === today)) {
+        return { success: true, message: 'النسخة الاحتياطية اليومية موجودة بالفعل.' };
+      }
+
+      const dataJson = JSON.stringify(this.db);
+      const backup: AutomaticBackup = {
+        id: `backup_${Date.now()}`,
+        createdAt: new Date().toISOString(),
+        dataJson,
+        checksum: this.checksum(dataJson),
+        source: 'local',
+        counts: {
+          invoices: this.db.invoices.length,
+          movements: this.db.movements.length,
+          materials: this.db.materials.length,
+        },
+      };
+      const updated = [backup, ...backups].slice(0, 30);
+      localStorage.setItem(BACKUPS_KEY, JSON.stringify(updated));
+
+      try {
+        await setDoc(doc(firestore, 'system_backups', backup.id), backup);
+      } catch (cloudError) {
+        console.warn('Daily cloud backup failed; local backup was kept:', cloudError);
+      }
+      this.db.lastBackupDate = backup.createdAt;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.db));
+      this.notifyListeners();
+      return { success: true, message: 'تم إنشاء نسخة احتياطية يومية كاملة واختبار سلامتها.' };
+    } catch (error) {
+      console.error('Daily backup failed', error);
+      return { success: false, message: 'تعذر إنشاء النسخة الاحتياطية اليومية.' };
+    }
+  }
+
+  public testAutomaticBackup(id: string): { success: boolean; message: string } {
+    const backup = this.getAutomaticBackups().find((item) => item.id === id);
+    if (!backup) return { success: false, message: 'النسخة الاحتياطية غير موجودة.' };
+    try {
+      const parsed: unknown = JSON.parse(backup.dataJson);
+      const valid = this.validateDatabaseSnapshot(parsed) && this.checksum(backup.dataJson) === backup.checksum;
+      if (!valid) return { success: false, message: 'فشل اختبار النسخة: بيانات تالفة أو غير مكتملة.' };
+      const snapshot = parsed as RestaurantDatabase;
+      return {
+        success: true,
+        message: `نجح الاختبار: ${snapshot.invoices.length} فاتورة، ${snapshot.movements.length} حركة مخزون، و${snapshot.materials.length} مادة.`,
+      };
+    } catch {
+      return { success: false, message: 'فشل اختبار النسخة بسبب JSON غير صالح.' };
+    }
+  }
+
+  public restoreAutomaticBackup(id: string): boolean {
+    const backup = this.getAutomaticBackups().find((item) => item.id === id);
+    if (!backup || this.checksum(backup.dataJson) !== backup.checksum) return false;
+    try {
+      const parsed: unknown = JSON.parse(backup.dataJson);
+      if (!this.validateDatabaseSnapshot(parsed)) return false;
+      this.db = { ...DEFAULT_DATABASE, ...parsed };
+      this.saveDatabase();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   public exportDatabaseJson(): string {
     return JSON.stringify(this.db, null, 2);
   }

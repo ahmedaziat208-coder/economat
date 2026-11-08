@@ -122,22 +122,25 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, onPrintInvoice
     e.preventDefault();
     if (!formData.invoiceNumber || formData.items.length === 0) return;
 
-    dbService.saveInvoice({
-      id: editingInvoice ? editingInvoice.id : undefined,
-      invoiceNumber: formData.invoiceNumber,
-      date: formData.date,
-      supplierId: formData.supplierId,
-      items: formData.items,
-      subtotalHT,
-      tvaRate: formData.tvaRate,
-      tvaAmount,
-      totalTTC,
-      status: formData.status,
-      paymentMethod: formData.paymentMethod,
-      notes: formData.notes,
-    });
-
-    setIsModalOpen(false);
+    try {
+      dbService.saveInvoice({
+        id: editingInvoice ? editingInvoice.id : undefined,
+        invoiceNumber: formData.invoiceNumber,
+        date: formData.date,
+        supplierId: formData.supplierId,
+        items: formData.items,
+        subtotalHT,
+        tvaRate: formData.tvaRate,
+        tvaAmount,
+        totalTTC,
+        status: formData.status,
+        paymentMethod: formData.paymentMethod,
+        notes: formData.notes,
+      });
+      setIsModalOpen(false);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'تعذر حفظ الفاتورة.');
+    }
   };
 
   return (
